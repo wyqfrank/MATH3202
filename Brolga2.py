@@ -262,4 +262,96 @@ Roads = [
 [200,8,54,30,1200],
 [201,54,8,30,1050]]
 
-# add fuel for roads onto constraints 
+from gurobipy import *
+
+m = Model("Brolga")
+
+# Sets
+sites = range(len(Sites))
+burn_sites = [site[0] for site in Sites if site[3] > 0]
+warehouses = [32, 34, 39, 43]
+roads = range(len(Roads))
+
+# Data
+
+# Warehouse data: maximum stock and price per liter
+warehouse_max_stock = {
+    32: 2600,  # Warehouse A
+    34: 2100,  # Warehouse B
+    39: 2900,  # Warehouse C
+    43: 2200   # Warehouse D
+}
+
+warehouse_price = {
+    32: 8.21,  # Warehouse A
+    34: 9.10,  # Warehouse B
+    39: 7.79,  # Warehouse C
+    43: 6.40   # Warehouse D
+}
+
+# Fuel requirements for each burn site
+fuel_required = {}
+for site in Sites:
+    if site[3] > 0:
+        fuel_required[site[0]] = site[3]
+
+# Transport cost per liter per km
+transport_cost = 0.78  # $/L/km
+
+# Create dictionary to store road data for easier access
+road_data = {}
+for road_id in roads:
+    _, from_site, to_site, distance, capacity = Roads[road_id]  
+    road_data[road_id] = {
+        'from': from_site,
+        'to': to_site,
+        'distance': distance,
+        'capacity': capacity
+    }
+
+# Variables
+x = {}
+for w in warehouses:
+    x[w] = m.addVar(lb=0, ub=warehouse_max_stock[w], name=f"x_{w}")
+
+# Flow of fuel along each road
+y = {}
+for r in roads:
+    from_site = road_data[r]['from']
+    to_site = road_data[r]['to']
+    y[r] = m.addVar(lb=0, name=f"y_{from_site}_{to_site}")
+
+m.update()
+
+# Objective
+purchase_cost = quicksum(warehouse_price[w] * x[w] for w in warehouses)
+transport_cost_expr = quicksum(transport_cost * road_data[r]['distance'] * y[r] for r in roads)
+
+m.setObjective(purchase_cost + transport_cost_expr, GRB.MINIMIZE)
+
+# Constraints
+
+# non-negativity constraints // add later 
+
+for site_id in burn_sites + warehouses:
+    # Outgoing flow
+    outflow = quicksum(y[r] for r in roads if road_data[r]['from'] == site_id)
+    
+    # Incoming flow
+    inflow = quicksum(y[r] for r in roads if road_data[r]['to'] == site_id)
+    
+    # For warehouses: outflow - inflow = amount purchased
+    if site_id in warehouses:
+        m.addConstr(outflow - inflow == x[site_id], name=f"flow_balance_warehouse_{site_id}")
+    
+    # For burn sites: inflow - outflow = fuel required
+    elif site_id in burn_sites:
+        m.addConstr(inflow - outflow == fuel_required[site_id], name=f"flow_balance_burn_{site_id}")
+
+# Road capacity constraints
+for r in roads:
+    capacity = road_data[r]['capacity']
+    m.addConstr(y[r] <= capacity, name=f"capacity_road_{r}")
+    
+m.optimize()
+print(m.ObjVal)
