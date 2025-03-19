@@ -1,61 +1,61 @@
-# ID, X, Y, Fuel needed (L)
+# ID, X, Y, Fuel needed (L), Suppressant needed (L)
 Sites = [
-[0,179,259,140],
-[1,45,113,241],
-[2,386,125,207],
-[3,43,166,366],
-[4,304,76,201],
-[5,302,138,209],
-[6,178,158,123],
-[7,146,28,293],
-[8,335,37,111],
-[9,321,152,131],
-[10,271,31,244],
-[11,280,99,131],
-[12,367,283,250],
-[13,17,177,154],
-[14,107,237,154],
-[15,187,47,317],
-[16,31,284,139],
-[17,188,178,67],
-[18,62,69,100],
-[19,323,119,122],
-[20,354,225,89],
-[21,166,272,203],
-[22,191,145,143],
-[23,292,178,225],
-[24,48,254,98],
-[25,264,155,242],
-[26,244,65,126],
-[27,144,139,143],
-[28,217,152,98],
-[29,368,83,130],
-[30,344,27,82],
-[31,290,25,118],
-[32,231,203,0],
-[33,300,150,98],
-[34,323,53,0],
-[35,33,136,192],
-[36,240,188,159],
-[37,329,22,122],
-[38,114,140,335],
-[39,96,275,0],
-[40,28,40,145],
-[41,25,196,184],
-[42,201,22,69],
-[43,86,113,0],
-[44,196,33,116],
-[45,269,129,88],
-[46,202,201,269],
-[47,164,12,192],
-[48,368,227,115],
-[49,215,227,212],
-[50,390,84,95],
-[51,284,259,112],
-[52,340,288,267],
-[53,315,186,159],
-[54,316,23,130],
-[55,149,215,91]]
+[0,179,259,140,61],
+[1,45,113,241,82],
+[2,386,125,207,80],
+[3,43,166,366,97],
+[4,304,76,201,63],
+[5,302,138,209,62],
+[6,178,158,123,49],
+[7,146,28,293,83],
+[8,335,37,111,48],
+[9,321,152,131,47],
+[10,271,31,244,61],
+[11,280,99,131,55],
+[12,367,283,250,104],
+[13,17,177,154,51],
+[14,107,237,154,52],
+[15,187,47,317,97],
+[16,31,284,139,50],
+[17,188,178,67,17],
+[18,62,69,100,29],
+[19,323,119,122,51],
+[20,354,225,89,35],
+[21,166,272,203,69],
+[22,191,145,143,47],
+[23,292,178,225,83],
+[24,48,254,98,34],
+[25,264,155,242,68],
+[26,244,65,126,45],
+[27,144,139,143,55],
+[28,217,152,98,35],
+[29,368,83,130,51],
+[30,344,27,82,24],
+[31,290,25,118,55],
+[32,231,203,0,0],
+[33,300,150,98,45],
+[34,323,53,0,0],
+[35,33,136,192,84],
+[36,240,188,159,49],
+[37,329,22,122,43],
+[38,114,140,335,140],
+[39,96,275,0,0],
+[40,28,40,145,50],
+[41,25,196,184,74],
+[42,201,22,69,22],
+[43,86,113,0,0],
+[44,196,33,116,44],
+[45,269,129,88,25],
+[46,202,201,269,96],
+[47,164,12,192,71],
+[48,368,227,115,39],
+[49,215,227,212,72],
+[50,390,84,95,32],
+[51,284,259,112,36],
+[52,340,288,267,91],
+[53,315,186,159,59],
+[54,316,23,130,42],
+[55,149,215,91,32]]
 
 # ID, Site1, Site2, Distance (km), Capacity (L)
 Roads = [
@@ -262,98 +262,3 @@ Roads = [
 [200,8,54,30,1200],
 [201,54,8,30,1050]]
 
-from gurobipy import *
-
-m = Model("Brolga")
-
-# Sets
-sites = range(len(Sites))
-burn_sites = [site[0] for site in Sites if site[3] > 0]
-warehouses = [32, 34, 39, 43]
-roads = range(len(Roads))
-
-# Data
-
-# Warehouse data: maximum stock and price per liter
-warehouse_max_stock = {
-    32: 2600,  # Warehouse A
-    34: 2100,  # Warehouse B
-    39: 2900,  # Warehouse C
-    43: 2200   # Warehouse D
-}
-
-warehouse_price = {
-    32: 8.21,  # Warehouse A
-    34: 9.10,  # Warehouse B
-    39: 7.79,  # Warehouse C
-    43: 6.40   # Warehouse D
-}
-
-# Fuel requirements for each burn site
-fuel_required = {}
-for site in Sites:
-    if site[3] > 0:
-        fuel_required[site[0]] = site[3]
-
-# Transport cost per liter per km
-transport_cost = 0.78  # $/L/km
-
-# Create dictionary to store road data for easier access
-road_data = {}
-for road_id in roads:
-    _, from_site, to_site, distance, capacity = Roads[road_id]  
-    road_data[road_id] = {
-        'from': from_site,
-        'to': to_site,
-        'distance': distance,
-        'capacity': capacity
-    }
-print(road_data)
-# Variables
-x = {}
-for w in warehouses:
-    x[w] = m.addVar(lb=0, ub=warehouse_max_stock[w], name=f"x_{w}")
-
-# Flow of fuel along each road
-y = {}
-for r in roads:
-    from_site = road_data[r]['from']
-    to_site = road_data[r]['to']
-    y[r] = m.addVar(lb=0, name=f"y_{from_site}_{to_site}")
-
-m.update()
-
-# Objective
-purchase_cost = quicksum(warehouse_price[w] * x[w] for w in warehouses)
-transport_cost_expr = quicksum(transport_cost * road_data[r]['distance'] * y[r] for r in roads)
-
-m.setObjective(purchase_cost + transport_cost_expr, GRB.MINIMIZE)
-
-# Constraints
-
-# non-negativity constraints // add later 
-
-for site_id in burn_sites + warehouses:
-    # Outgoing flow
-    outflow = quicksum(y[r] for r in roads if road_data[r]['from'] == site_id)
-    
-    # Incoming flow
-    inflow = quicksum(y[r] for r in roads if road_data[r]['to'] == site_id)
-    
-    # For warehouses: outflow - inflow = amount purchased
-    if site_id in warehouses:
-        m.addConstr(outflow - inflow == x[site_id], name=f"flow_balance_warehouse_{site_id}")
-    
-    # For burn sites: inflow - outflow = fuel required
-    elif site_id in burn_sites:
-        inflow = quicksum(y[r] * (1 - 0.0005 * road_data[r]['distance']) 
-                         for r in roads if road_data[r]['to'] == site_id)
-        m.addConstr(inflow - outflow == fuel_required[site_id], name=f"flow_balance_burn_{site_id}")
-
-# Road capacity constraints
-for r in roads:
-    capacity = road_data[r]['capacity']
-    m.addConstr(y[r] <= capacity, name=f"capacity_road_{r}")
-    
-m.optimize()
-print(m.ObjVal)
