@@ -309,6 +309,7 @@ for road_id in roads:
         'capacity': capacity
     }
 print(road_data)
+
 # Variables
 x = {}
 for w in warehouses:
@@ -330,8 +331,6 @@ transport_cost_expr = quicksum(transport_cost * road_data[r]['distance'] * y[r] 
 m.setObjective(purchase_cost + transport_cost_expr, GRB.MINIMIZE)
 
 # Constraints
-
-# non-negativity constraints // add later 
 
 for site_id in burn_sites + warehouses:
     # Outgoing flow

@@ -262,3 +262,153 @@ Roads = [
 [200,8,54,30,1200],
 [201,54,8,30,1050]]
 
+from gurobipy import *
+
+m = Model("Brolga")
+
+# Sets
+
+sites = range(len(Sites))
+burn_sites = [site[0] for site in Sites if site[3] > 0]
+warehouses = [32, 34, 39, 43]
+roads = range(len(Roads))
+
+# Data
+
+# Warehouse data (fuel): maximum stock and price per liter
+warehouse_max_stock = { 
+    32: 2600,  # Warehouse A
+    34: 2100,  # Warehouse B
+    39: 2900,  # Warehouse C
+    43: 2200   # Warehouse D
+}
+
+warehouse_price = {
+    32: 8.21,  # Warehouse A
+    34: 9.10,  # Warehouse B
+    39: 7.79,  # Warehouse C
+    43: 6.40   # Warehouse D
+}
+
+#  Warehouse data (fire suppressant): maximum stock and price per liter
+warehouse_max_stock_fire = {
+    32: 1100,  # Warehouse A
+    34: 800,  # Warehouse B
+    39: 900,  # Warehouse C
+    43: 900   # Warehouse D
+}
+
+warehouse_price_fire = {
+    32: 2.97,  # Warehouse A
+    34: 4.57,  # Warehouse B
+    39: 3.29,  # Warehouse C
+    43: 1.32   # Warehouse D
+}
+
+## ^ probs better way to do this with a dictionary of dictionaries
+## and using a loop to retrieve the data from sites
+
+# Fuel requirements for each burn site
+fuel_required = {}
+for site in Sites:
+    if site[3] > 0:
+        fuel_required[site[0]] = site[3]
+
+# Transport cost per liter per km
+transport_cost = 0.78  # $/L/km
+
+road_data = {}
+for road_id in roads:
+    _, from_site, to_site, distance, capacity = Roads[road_id]  
+    road_data[road_id] = {
+        'from': from_site,
+        'to': to_site,
+        'distance': distance,
+        'capacity': capacity
+    }
+
+#  Fire suppressant requirements for each burn site
+suppressant_required = {}
+for site in Sites:
+    if site[4] > 0:
+        suppressant_required[site[0]] = site[4]
+
+# Variables 
+
+# Amount of fuel to purchased from warehouse
+x = {}
+for w in warehouses:
+    x[w] = m.addVar(lb=0, ub=warehouse_max_stock[w]) # maximum stock constraint set here
+
+# Flow of fuel along each road
+y = {}
+for r in roads:
+    from_site = road_data[r]['from']
+    to_site = road_data[r]['to']
+    y[r] = m.addVar(lb=0, name=f"yf_{from_site}_{to_site}")
+
+# Amount of fire suppressant to purchased from warehouse
+z = {}
+for w in warehouses:
+    z[w] = m.addVar(lb=0, ub=warehouse_max_stock_fire[w]) # maximum stock constraint set here
+
+# Flow of fire suppressant along each road
+yf = {}
+for r in roads:
+    from_site = road_data[r]['from']
+    to_site = road_data[r]['to']
+    yf[r] = m.addVar(lb=0, name=f"yf_{from_site}_{to_site}")
+
+m.update()
+
+# Objective
+fuel_purchase_cost = quicksum(warehouse_price[w] * x[w] for w in warehouses)
+suppressant_purchase_cost = quicksum(warehouse_price_fire[w] * z[w] for w in warehouses)
+transport_cost_expr = quicksum(transport_cost * road_data[r]['distance'] * (y[r] + yf[r]) for r in roads)
+
+m.setObjective(fuel_purchase_cost + suppressant_purchase_cost + transport_cost_expr, GRB.MINIMIZE)
+
+# Constraints
+
+for site_id in burn_sites + warehouses:
+    # Outgoing flow (fuel)
+    outflow = quicksum(y[r] for r in roads if road_data[r]['from'] == site_id)
+    
+    # Incoming flow (fuel)
+    inflow = quicksum(y[r] for r in roads if road_data[r]['to'] == site_id)
+    
+    # For warehouses (fuel): outflow - inflow = amount purchased
+    if site_id in warehouses:
+        m.addConstr(outflow - inflow == x[site_id], name=f"flow_balance_warehouse_{site_id}")
+    
+    # For burn sites (fuel): inflow - outflow = fuel required
+    elif site_id in burn_sites:
+        inflow = quicksum(y[r] * (1 - 0.0005 * road_data[r]['distance']) 
+                         for r in roads if road_data[r]['to'] == site_id)
+        m.addConstr(inflow - outflow == fuel_required[site_id], name=f"flow_balance_burn_{site_id}")
+
+    # Fire suppressant flow balance constraints
+
+    # Outgoing flow (fire suppressant)
+    outflow = quicksum(yf[r] for r in roads if road_data[r]['from'] == site_id)
+
+    # Incoming flow (fire suppressant)
+    inflow = quicksum(yf[r] for r in roads if road_data[r]['to'] == site_id)
+
+    # For warehouses (fire suppressant): outflow - inflow = amount purchased
+    if site_id in warehouses:
+        m.addConstr(outflow - inflow == z[site_id], name=f"flow_balance_warehouse_fire_{site_id}")
+
+    # For burn sites (fire suppressant): inflow - outflow = fire suppressant required 
+    elif site_id in burn_sites:
+        inflow = quicksum(yf[r] for r in roads if road_data[r]['to'] == site_id)
+        m.addConstr(inflow - outflow == suppressant_required[site_id], name=f"flow_balance_burn_fire_{site_id}")
+
+
+# Road capacity constraints
+for r in roads:
+    capacity = road_data[r]['capacity']
+    m.addConstr(y[r] + yf[r] <= capacity, name=f"capacity_road_{r}")
+    
+m.optimize()
+print(m.ObjVal)
