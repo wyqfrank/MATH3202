@@ -262,6 +262,94 @@ Roads = [
 [200,8,54,30,1200],
 [201,54,8,30,1050]]
 
+from gurobipy import *
+
 # Sets
 
 sites = range(len(Sites))
+burn_sites = [site[0] for site in Sites if site[3] > 0]
+warehouses = [32, 34, 39, 43]
+roads = range(len(Roads))
+time = ["year 1", "year 2", "year 3", "year 4", "year 5"]
+
+# Data
+
+# Warehouse data (fuel): maximum stock and price per liter
+warehouse_max_stock = { 
+    32: 2600,  # Warehouse A
+    34: 2100,  # Warehouse B
+    39: 2900,  # Warehouse C
+    43: 2200   # Warehouse D
+}
+
+warehouse_price = {
+    32: 8.21,  # Warehouse A
+    34: 9.10,  # Warehouse B
+    39: 7.79,  # Warehouse C
+    43: 6.40   # Warehouse D
+}
+
+#  Warehouse data (fire suppressant): maximum stock and price per liter
+warehouse_max_stock_fire = {
+    32: 1100,  # Warehouse A
+    34: 800,  # Warehouse B
+    39: 900,  # Warehouse C
+    43: 900   # Warehouse D
+}
+
+warehouse_price_fire = {
+    32: 2.97,  # Warehouse A
+    34: 4.57,  # Warehouse B
+    39: 3.29,  # Warehouse C
+    43: 1.32   # Warehouse D
+}
+
+# transportation cost at each year 
+transport_cost = {
+    "year 1": 0.78,
+    "year 2": 0.82,
+    "year 3": 0.85,
+    "year 4": 0.88,
+    "year 5": 0.91
+}
+
+# Fuel requirements for each burn site for each year
+fuel_required = {}
+for year in time:
+    fuel_required[year] = {}
+
+for site in Sites: 
+    if site[3] > 0:
+        fuel_required["year 1"][site[0]] = site[3]
+        fuel_required["year 2"][site[0]] = site[4]
+        fuel_required["year 3"][site[0]] = site[5]
+        fuel_required["year 4"][site[0]] = site[6]
+        fuel_required["year 5"][site[0]] = site[7] 
+
+# fire suppressant requirements for each burn site for each year
+suppressant_required = {}
+for year in time:
+    suppressant_required[year] = {}
+
+for site in Sites:
+    if site[8] > 0:
+        suppressant_required["year 1"][site[0]] = site[8]
+        suppressant_required["year 2"][site[0]] = site[9]
+        suppressant_required["year 3"][site[0]] = site[10]
+        suppressant_required["year 4"][site[0]] = site[11]
+        suppressant_required["year 5"][site[0]] = site[12]
+
+MaxStor = 150
+evap = 0.0005
+
+road_data = {}
+for road_id in roads:
+    _, from_site, to_site, distance, capacity = Roads[road_id]  
+    road_data[road_id] = {
+        'from': from_site,
+        'to': to_site,
+        'distance': distance,
+        'capacity': capacity
+    }
+
+# variables
