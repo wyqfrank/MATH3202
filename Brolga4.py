@@ -271,6 +271,7 @@ burn_sites = [site[0] for site in Sites if site[3] > 0]
 warehouses = [32, 34, 39, 43]
 roads = range(len(Roads))
 time = ["year 1", "year 2", "year 3", "year 4", "year 5"]
+products = ["fuel", "fire suppressant"]
 
 # Data
 
