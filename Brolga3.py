@@ -379,13 +379,13 @@ for site_id in burn_sites + warehouses:
     
     # For warehouses (fuel): outflow - inflow = amount purchased
     if site_id in warehouses:
-        m.addConstr(outflow - inflow == x[site_id], name=f"flow_balance_warehouse_{site_id}")
+        m.addConstr(outflow - inflow == x[site_id])
     
     # For burn sites (fuel): inflow - outflow = fuel required
     elif site_id in burn_sites:
         inflow = quicksum(y[r] * (1 - 0.0005 * road_data[r]['distance']) 
                          for r in roads if road_data[r]['to'] == site_id)
-        m.addConstr(inflow - outflow == fuel_required[site_id], name=f"flow_balance_burn_{site_id}")
+        m.addConstr(inflow - outflow == fuel_required[site_id])
 
     # Fire suppressant flow balance constraints
 
@@ -397,12 +397,12 @@ for site_id in burn_sites + warehouses:
 
     # For warehouses (fire suppressant): outflow - inflow = amount purchased
     if site_id in warehouses:
-        m.addConstr(outflow - inflow == z[site_id], name=f"flow_balance_warehouse_fire_{site_id}")
+        m.addConstr(outflow - inflow == z[site_id])
 
     # For burn sites (fire suppressant): inflow - outflow = fire suppressant required 
     elif site_id in burn_sites:
         inflow = quicksum(yf[r] for r in roads if road_data[r]['to'] == site_id)
-        m.addConstr(inflow - outflow == suppressant_required[site_id], name=f"flow_balance_burn_fire_{site_id}")
+        m.addConstr(inflow - outflow == suppressant_required[site_id])
 
 
 # Road capacity constraints

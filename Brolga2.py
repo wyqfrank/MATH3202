@@ -352,7 +352,7 @@ for site_id in burn_sites + warehouses:
 # Road capacity constraints
 for r in roads:
     capacity = road_data[r]['capacity']
-    m.addConstr(y[r] <= capacity, name=f"capacity_road_{r}")
+    m.addConstr(y[r] <= capacity, name=f"capacity_road_{r}") 
     
 m.optimize()
 print(m.ObjVal)
