@@ -353,4 +353,43 @@ for road_id in roads:
         'capacity': capacity
     }
 
-# variables
+
+# Variables
+x_fuel = {}
+x_sup = {}
+y_fuel = {}
+y_sup = {}
+inv_fuel = {}
+inv_sup = {}
+
+for t in time:
+    for w in warehouses:
+        x_fuel[t, w] = m.addVar(lb=0, ub=warehouse_max_fuel_stock[w])
+        x_sup[t, w] = m.addVar(lb=0, ub=warehouse_max_firesup_stock[w])
+    
+    for r in roads:
+        from_site = road_data[r]['from']
+        to_site = road_data[r]['to']
+        y_fuel[t, r] = m.addVar(lb=0)
+        y_sup[t, r] = m.addVar(lb=0)
+    
+    for s in burn_sites:
+        inv_fuel[t, s] = m.addVar(lb=0)
+        inv_sup[t, s] = m.addVar(lb=0)
+
+m.update()
+
+        
+# Objective
+for t in time:
+    #purchase costs
+    fuel_purchase = quicksum(warehouse_price[w] * x_fuel[t,w] for w in warehouses)
+    sup_purchase = quicksum(warehouse_price_fire[w] * x_sup[t,w] for w in warehouses)
+    
+    #flow balance on road
+    fuel_transport = quicksum(transport_cost[t] * road_data[r]['distance'] * y_fuel[t, r] for r in roads)
+    sup_transport = quicksum(transport_cost[t] * road_data[r]['distance'] * y_sup[t, r] for r in roads)
+  
+m.setObjective(fuel_purchase + sup_purchase + fuel_transport + sup_transport, GRB.MINIMIZE)
+
+m.optimize()
