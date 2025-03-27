@@ -264,81 +264,34 @@ Roads = [
 
 from gurobipy import *
 
-# Sets
-
-sites = range(len(Sites))
-burn_sites = [site[0] for site in Sites if site[3] > 0]
-warehouses = [32, 34, 39, 43]
-roads = range(len(Roads))
-time = ["year 1", "year 2", "year 3", "year 4", "year 5"]
-products = ["fuel", "fire suppressant"]
-
-# Data
-
-# Warehouse data (fuel): maximum stock and price per liter
-warehouse_max_stock = { 
-    32: 2600,  # Warehouse A
-    34: 2100,  # Warehouse B
-    39: 2900,  # Warehouse C
-    43: 2200   # Warehouse D
-}
-
-warehouse_price = {
-    32: 8.21,  # Warehouse A
-    34: 9.10,  # Warehouse B
-    39: 7.79,  # Warehouse C
-    43: 6.40   # Warehouse D
-}
-
-#  Warehouse data (fire suppressant): maximum stock and price per liter
-warehouse_max_stock_fire = {
-    32: 1100,  # Warehouse A
-    34: 800,  # Warehouse B
-    39: 900,  # Warehouse C
-    43: 900   # Warehouse D
-}
-
-warehouse_price_fire = {
-    32: 2.97,  # Warehouse A
-    34: 4.57,  # Warehouse B
-    39: 3.29,  # Warehouse C
-    43: 1.32   # Warehouse D
-}
-
-# transportation cost at each year 
+# Fix transport_cost to match time format
 transport_cost = {
-    "year 1": 0.78,
-    "year 2": 0.82,
-    "year 3": 0.85,
-    "year 4": 0.88,
-    "year 5": 0.91
+    2025: 0.78,
+    2026: 0.82,
+    2027: 0.85,
+    2028: 0.88,
+    2029: 0.91
 }
 
-# Fuel requirements for each burn site for each year
+# Fix fuel_required and suppressant_required to use time format
 fuel_required = {}
-for year in time:
-    fuel_required[year] = {}
-
-for site in Sites: 
-    if site[3] > 0:
-        fuel_required["year 1"][site[0]] = site[3]
-        fuel_required["year 2"][site[0]] = site[4]
-        fuel_required["year 3"][site[0]] = site[5]
-        fuel_required["year 4"][site[0]] = site[6]
-        fuel_required["year 5"][site[0]] = site[7] 
-
-# fire suppressant requirements for each burn site for each year
 suppressant_required = {}
-for year in time:
-    suppressant_required[year] = {}
 
 for site in Sites:
-    if site[8] > 0:
-        suppressant_required["year 1"][site[0]] = site[8]
-        suppressant_required["year 2"][site[0]] = site[9]
-        suppressant_required["year 3"][site[0]] = site[10]
-        suppressant_required["year 4"][site[0]] = site[11]
-        suppressant_required["year 5"][site[0]] = site[12]
+    site_id = site[0]
+    if site[3] > 0:  # If has fuel requirement
+        fuel_required[2025, site_id] = site[3]
+        fuel_required[2026, site_id] = site[4]
+        fuel_required[2027, site_id] = site[5]
+        fuel_required[2028, site_id] = site[6]
+        fuel_required[2029, site_id] = site[7]
+    
+    if site[8] > 0:  # If has suppressant requirement
+        suppressant_required[2025, site_id] = site[8]
+        suppressant_required[2026, site_id] = site[9]
+        suppressant_required[2027, site_id] = site[10]
+        suppressant_required[2028, site_id] = site[11]
+        suppressant_required[2029, site_id] = site[12]
 
 MaxStor = 150
 evap = 0.0005
@@ -353,43 +306,164 @@ for road_id in roads:
         'capacity': capacity
     }
 
-
-# Variables
-x_fuel = {}
-x_sup = {}
-y_fuel = {}
-y_sup = {}
-inv_fuel = {}
+# ========== VARIABLES ==========
+x_fuel = {}  
+x_sup = {}   
+y_fuel = {}  
+y_sup = {}  
+inv_fuel = {} 
 inv_sup = {}
 
 for t in time:
     for w in warehouses:
-        x_fuel[t, w] = m.addVar(lb=0, ub=warehouse_max_fuel_stock[w])
-        x_sup[t, w] = m.addVar(lb=0, ub=warehouse_max_firesup_stock[w])
+        x_fuel[t, w] = m.addVar(lb=0, ub=warehouse_max_stock[w], name=f"fuel_purchase_{t}_{w}")
+        x_sup[t, w] = m.addVar(lb=0, ub=warehouse_max_stock_fire[w], name=f"sup_purchase_{t}_{w}")
     
     for r in roads:
-        from_site = road_data[r]['from']
-        to_site = road_data[r]['to']
-        y_fuel[t, r] = m.addVar(lb=0)
-        y_sup[t, r] = m.addVar(lb=0)
+        y_fuel[t, r] = m.addVar(lb=0, ub=road_data[r]['capacity'], name=f"fuel_transport_{t}_{r}")
+        y_sup[t, r] = m.addVar(lb=0, ub=road_data[r]['capacity'], name=f"sup_transport_{t}_{r}")
     
     for s in burn_sites:
-        inv_fuel[t, s] = m.addVar(lb=0)
-        inv_sup[t, s] = m.addVar(lb=0)
+        inv_fuel[t, s] = m.addVar(lb=0, ub=MaxStor, name=f"fuel_inventory_{t}_{s}")
+        inv_sup[t, s] = m.addVar(lb=0, ub=MaxStor, name=f"sup_inventory_{t}_{s}")
 
 m.update()
 
-        
-# Objective
-for t in time:
-    #purchase costs
-    fuel_purchase = quicksum(warehouse_price[w] * x_fuel[t,w] for w in warehouses)
-    sup_purchase = quicksum(warehouse_price_fire[w] * x_sup[t,w] for w in warehouses)
+
+# ========== OBJECTIVE ==========
+obj = quicksum(
+    warehouse_price[w] * x_fuel[t, w] + warehouse_price_fire[w] * x_sup[t, w] 
+    for w in warehouses for t in time
+) + quicksum(
+    transport_cost[t] * road_data[r]['distance'] * (y_fuel[t, r] + y_sup[t, r])
+    for r in roads for t in time
+)
+
+m.setObjective(obj, GRB.MINIMIZE)
+
+
+
+# ========== CONSTRAINTS ==========
+
+# 1. Initial Inventory Constraints
+first_year = time[0]
+for s in burn_sites:
+    m.addConstr(inv_fuel[first_year, s] <= MaxStor/2, name=f"init_fuel_inv_{s}")
+    m.addConstr(inv_sup[first_year, s] <= MaxStor/2, name=f"init_sup_inv_{s}")
+
+# 2. Flow Balance Constraints
+for i in range(len(time)):
+    t = time[i]
+    prev_t = time[i-1] if i > 0 else None
     
-    #flow balance on road
-    fuel_transport = quicksum(transport_cost[t] * road_data[r]['distance'] * y_fuel[t, r] for r in roads)
-    sup_transport = quicksum(transport_cost[t] * road_data[r]['distance'] * y_sup[t, r] for r in roads)
-  
-m.setObjective(fuel_purchase + sup_purchase + fuel_transport + sup_transport, GRB.MINIMIZE)
+    for s in burn_sites:
+        # Fuel balance
+        incoming_fuel = quicksum(y_fuel[t, r] for r in roads if road_data[r]['to'] == s)
+        outgoing_fuel = quicksum(y_fuel[t, r] for r in roads if road_data[r]['from'] == s)
+        fuel_demand = fuel_required.get((t, s), 0)
+        
+        if prev_t:
+            m.addConstr(
+                inv_fuel[prev_t, s] + incoming_fuel - outgoing_fuel - fuel_demand == inv_fuel[t, s],
+                name=f"fuel_balance_{t}_{s}"
+            )
+        else:
+            m.addConstr(
+                incoming_fuel - outgoing_fuel - fuel_demand == inv_fuel[t, s],
+                name=f"fuel_balance_first_{t}_{s}"
+            )
+        
+        # Suppressant balance
+        incoming_sup = quicksum(y_sup[t, r] for r in roads if road_data[r]['to'] == s)
+        outgoing_sup = quicksum(y_sup[t, r] for r in roads if road_data[r]['from'] == s)
+        sup_demand = suppressant_required.get((t, s), 0)
+        
+        if prev_t:
+            m.addConstr(
+                inv_sup[prev_t, s] + incoming_sup - outgoing_sup - sup_demand == inv_sup[t, s],
+                name=f"sup_balance_{t}_{s}"
+            )
+        else:
+            m.addConstr(
+                incoming_sup - outgoing_sup - sup_demand == inv_sup[t, s],
+                name=f"sup_balance_first_{t}_{s}"
+            )
+
+# 3. Warehouse Output Constraints
+for t in time:
+    for w in warehouses:
+        fuel_out = quicksum(y_fuel[t, r] for r in roads if road_data[r]['from'] == w)
+        m.addConstr(fuel_out <= x_fuel[t, w], name=f"warehouse_fuel_output_{t}_{w}")
+        
+        sup_out = quicksum(y_sup[t, r] for r in roads if road_data[r]['from'] == w)
+        m.addConstr(sup_out <= x_sup[t, w], name=f"warehouse_sup_output_{t}_{w}")
+
 
 m.optimize()
+
+def purchases_sensitivity_analysis(model):
+    if model.status != GRB.OPTIMAL:
+        print("Model didn't solve to optimality. Cannot perform sensitivity analysis.")
+        return
+    
+    print("\n" + "="*70)
+    print("FUEL PURCHASES SENSITIVITY ANALYSIS".center(70))
+    print("="*70)
+    
+    # Detailed purchase data
+    purchase_data = []
+    total_purchases_by_warehouse = {w: 0 for w in warehouses}
+    total_purchases_by_year = {t: 0 for t in time}
+    
+    for t in time:
+        for w in warehouses:
+            var = x_fuel[t, w]
+            purchase_qty = var.X
+            
+            total_purchases_by_warehouse[w] += purchase_qty
+            total_purchases_by_year[t] += purchase_qty
+            
+            purchase_data.append([
+                f"Year {t}", 
+                f"Warehouse {w}", 
+                f"${warehouse_price[w]:.2f}/L", 
+                f"{purchase_qty:,.2f} L"
+            ])
+    
+    # Print Detailed Fuel Purchases
+    print("\nDetailed Fuel Purchases by Warehouse and Year:")
+    print(tabulate(purchase_data,
+                 headers=["Year", "Warehouse", "Price", "Quantity"],
+                 tablefmt="grid"))
+    
+    # Warehouse-Level Summary
+    print("\n" + "-"*70)
+    print("WAREHOUSE-LEVEL FUEL PURCHASE SUMMARY".center(70))
+    print("-"*70)
+    
+    warehouse_summary = [
+        [w, f"${warehouse_price[w]:.2f}/L", f"{total_purchases_by_warehouse[w]:,.2f} L"] 
+        for w in warehouses
+    ]
+    
+    print(tabulate(warehouse_summary,
+                 headers=["Warehouse", "Price", "Total Fuel Purchased"],
+                 tablefmt="grid"))
+    
+    # Yearly Purchase Summary
+    print("\n" + "-"*70)
+    print("YEARLY FUEL PURCHASE SUMMARY".center(70))
+    print("-"*70)
+    
+    yearly_summary = [
+        [t, f"{total_purchases_by_year[t]:,.2f} L"] 
+        for t in time
+    ]
+    
+    print(tabulate(yearly_summary,
+                 headers=["Year", "Total Fuel Purchased"],
+                 tablefmt="grid"))
+
+# Call the purchases sensitivity analysis
+purchases_sensitivity_analysis(m)
+
