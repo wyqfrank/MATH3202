@@ -264,9 +264,11 @@ Roads = [
 
 from gurobipy import *
 
-# Sets
 
 sites = range(len(Sites))
+
+# Sets
+
 burn_sites = [site[0] for site in Sites if site[3] > 0]
 warehouses = [32, 34, 39, 43]
 roads = range(len(Roads))
@@ -341,7 +343,10 @@ for site in Sites:
         suppressant_required["2028"][site[0]] = site[11]
         suppressant_required["2029"][site[0]] = site[12]
 
+# max storage capacity at each burn site
 MaxStor = 150
+
+# evaporation rate
 evap = 0.0005
 
 road_data = {}
@@ -357,31 +362,38 @@ for road_id in roads:
 m = Model("Brolga4")
 
 # variables
+
+# amount of fuel purchased at each warehouse for each year
 X_f = {}
 for w in warehouses:
     for t in time: 
         X_f[w, t] = m.addVar(lb = 0, ub = m_f[w])
 
+# amount of fire suppressant purchased at each warehouse for each year
 X_s = {}
 for w in warehouses:
     for t in time:
         X_s[w, t] = m.addVar(lb = 0, ub = m_s[w])
 
+# amount of fuel transported along each road for each year
 Y_f = {}
 for e in roads:
     for t in time:
         Y_f[e, t] = m.addVar(lb = 0)
 
+# amount of fire suppressant transported along each road for each year
 Y_s = {}
 for e in roads:
     for t in time:
         Y_s[e, t] = m.addVar(lb = 0)
 
+# inventory of fuel at each burn site for each year
 I_f = {}
 for b in burn_sites:
     for t in time:
         I_f[b, t] = m.addVar(lb = 0)
 
+# inventory of fire suppressant at each burn site for each year
 I_s = {}
 for b in burn_sites:
     for t in time:
