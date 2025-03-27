@@ -341,7 +341,7 @@ for site in Sites:
         suppressant_required["2028"][site[0]] = site[11]
         suppressant_required["2029"][site[0]] = site[12]
 
-MaxStor = 150
+MaxStor = 300
 evap = 0.0005
 
 road_data = {}
@@ -462,4 +462,16 @@ for t in time:
     yearly_cost[t] = c_f[32] * X_f[32, t].X + c_s[32] * X_s[32, t].X + tc[t] * sum(road_data[e]['distance'] * (Y_f[e, t].X + Y_s[e, t].X) for e in roads)
     print(f"Year {t} cost: ${yearly_cost[t]}")
 
-    
+# amount of fuel and suppressant purchased at each warehouse
+
+print("Warehouse Inventory Tracking:")
+for w in warehouses:
+    print(f"\nWarehouse {w}:")
+    print("Fuel Inventory:")
+    for t in time:
+        print(f"  {t}: {X_f[w, t].X} L")
+        
+    print("\nFire Suppressant Inventory:")
+    for t in time:
+        print(f"  {t}: {X_s[w, t].X} L")
+

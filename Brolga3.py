@@ -305,9 +305,6 @@ warehouse_price_fire = {
     43: 1.32   # Warehouse D
 }
 
-## ^ probs better way to do this with a dictionary of dictionaries
-## and using a loop to retrieve the data from sites
-
 # Fuel requirements for each burn site
 fuel_required = {}
 for site in Sites:
@@ -412,3 +409,9 @@ for r in roads:
     
 m.optimize()
 print(m.ObjVal)
+
+# amount of fuel and suppressant purchased at each warehouse formatted in table
+for w in warehouses:
+    print(f"Warehouse {w}:")
+    print(f"Fuel: {x[w].X}")
+    print(f"Fire suppressant: {z[w].X}")
