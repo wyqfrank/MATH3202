@@ -265,7 +265,6 @@ Roads = [
 from gurobipy import *
 
 # Sets
-
 sites = range(len(Sites))
 burn_sites = [site[0] for site in Sites if site[3] > 0]
 warehouses = [32, 34, 39, 43]
@@ -354,38 +353,44 @@ for road_id in roads:
         'capacity': capacity
     }
 
-m = Model("Brolga4")
+m = Model("Brolga5")
 
 # variables
+# Amount of fuel purchased from each warehouse in each time period
 X_f = {}
 for w in warehouses:
     for t in time: 
-        X_f[w, t] = m.addVar(lb = 0, ub = m_f[w])
+        X_f[w, t] = m.addVar(lb=0, ub=m_f[w], name=f"X_f_{w}_{t}")
 
+# Amount of suppressant purchased from each warehouse in each time period
 X_s = {}
 for w in warehouses:
     for t in time:
-        X_s[w, t] = m.addVar(lb = 0, ub = m_s[w])
+        X_s[w, t] = m.addVar(lb=0, ub=m_s[w], name=f"X_s_{w}_{t}")
 
+# Flow of fuel along each road in each time period
 Y_f = {}
 for e in roads:
     for t in time:
-        Y_f[e, t] = m.addVar(lb = 0)
+        Y_f[e, t] = m.addVar(lb=0, name=f"Y_f_{e}_{t}")
 
+# Flow of suppressant along each road in each time period
 Y_s = {}
 for e in roads:
     for t in time:
-        Y_s[e, t] = m.addVar(lb = 0)
+        Y_s[e, t] = m.addVar(lb=0, name=f"Y_s_{e}_{t}")
 
+# Inventory of fuel at each burn site at the end of each time period
 I_f = {}
 for b in burn_sites:
     for t in time:
-        I_f[b, t] = m.addVar(lb = 0)
+        I_f[b, t] = m.addVar(lb=0, name=f"I_f_{b}_{t}")
 
+# Inventory of suppressant at each burn site at the end of each time period
 I_s = {}
 for b in burn_sites:
     for t in time:
-        I_s[b, t] = m.addVar(lb = 0)
+        I_s[b, t] = m.addVar(lb=0, name=f"I_s_{b}_{t}")
 
 m.update()
 
@@ -397,69 +402,107 @@ m.setObjective(fuel_suppressant_cost + transport_cost, GRB.MINIMIZE)
 
 # Constraints
 
-# warehouse purchase limits
+# 1. Warehouse purchase limits
 for w in warehouses:
     for t in time:
-        m.addConstr(X_f[w, t] <= m_f[w])
-        m.addConstr(X_s[w, t] <= m_s[w])
+        m.addConstr(X_f[w, t] <= m_f[w], name=f"fuel_limit_{w}_{t}")
+        m.addConstr(X_s[w, t] <= m_s[w], name=f"suppressant_limit_{w}_{t}")
 
+# 2. Road capacity constraints
+for e in roads:
+    for t in time:
+        m.addConstr(Y_f[e, t] + Y_s[e, t] <= road_data[e]['capacity'], name=f"road_capacity_{e}_{t}")
 
+# 3. Warehouse flow balance (fuel)
 for w in warehouses:
     for t in time:
-        # warehouse flow balance (fuel)
-        inflow_f = quicksum(Y_f[e, t] for e in roads if road_data[e]['to'] == w)
         outflow_f = quicksum(Y_f[e, t] for e in roads if road_data[e]['from'] == w)
-        m.addConstr(outflow_f - inflow_f == X_f[w, t])
+        inflow_f = quicksum(Y_f[e, t] for e in roads if road_data[e]['to'] == w)
+        m.addConstr(outflow_f - inflow_f == X_f[w, t], name=f"fuel_flow_balance_warehouse_{w}_{t}")
 
-        # warehouse flow balance (fire suppressant)
-        inflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['to'] == w)
+# 4. Warehouse flow balance (fire suppressant)
+for w in warehouses:
+    for t in time:
         outflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['from'] == w)
-        m.addConstr(outflow_s - inflow_s == X_s[w, t])
+        inflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['to'] == w)
+        m.addConstr(outflow_s - inflow_s == X_s[w, t], name=f"suppressant_flow_balance_warehouse_{w}_{t}")
 
-# burn site flow balance including inventory, fuel and supressant
+# 5. Storage capacity constraint
+for b in burn_sites:
+    for t in time:
+        m.addConstr(I_f[b, t] + I_s[b, t] <= MaxStor, name=f"storage_capacity_{b}_{t}")
+
+# 6. Initial inventory (previous year reference for time linking)
 prev_year = {time[0]: None}
 for i in range(1, len(time)):
     prev_year[time[i]] = time[i-1]
 
+# 7. Burn site flow balance including inventory (fuel)
 for b in burn_sites:
     for t in time:
-        # Incoming flow (fuel) with evaporation considered
+        # Incoming flow with evaporation considered
         inflow_f = quicksum(Y_f[e, t] * (1 - evap * road_data[e]['distance']) 
                           for e in roads if road_data[e]['to'] == b)
-        # Outgoing flow (fuel)
+        # Outgoing flow
         outflow_f = quicksum(Y_f[e, t] for e in roads if road_data[e]['from'] == b)
+        
         # Previous period inventory or 0 if first period
         prev_inv_f = 0 if prev_year[t] is None else I_f[b, prev_year[t]]
+        
         # Flow balance with inventory
         m.addConstr(prev_inv_f + inflow_f - outflow_f == fuel_required[t][b] + I_f[b, t], 
                    name=f"fuel_flow_balance_burn_{b}_{t}")
-        
-        # Incoming flow (suppressant)
-        inflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['to'] == b)
-        # Outgoing flow (suppressant)
-        outflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['from'] == b)
-        # Previous period inventory or 0 if first period
-        prev_inv_s = 0 if prev_year[t] is None else I_s[b, prev_year[t]]
-        m.addConstr(prev_inv_s + inflow_s - outflow_s == suppressant_required[t][b] + I_s[b, t])
 
-# Road capacity constraints
-for e in roads:
-    for t in time:
-        m.addConstr(Y_f[e, t] + Y_s[e, t] <= road_data[e]['capacity'])
-
-# Storage capacity constraint
+# 8. Burn site flow balance including inventory (suppressant)
 for b in burn_sites:
     for t in time:
-        m.addConstr(I_f[b, t] + I_s[b, t] <= MaxStor)
+        # Incoming flow (no evaporation for suppressant)
+        inflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['to'] == b)
+        # Outgoing flow
+        outflow_s = quicksum(Y_s[e, t] for e in roads if road_data[e]['from'] == b)
+        
+        # Previous period inventory or 0 if first period
+        prev_inv_s = 0 if prev_year[t] is None else I_s[b, prev_year[t]]
+        
+        # Flow balance with inventory
+        m.addConstr(prev_inv_s + inflow_s - outflow_s == suppressant_required[t][b] + I_s[b, t], 
+                   name=f"suppressant_flow_balance_burn_{b}_{t}")
 
+# Solve the model
 m.optimize()
 
-print(f"Optimal solution found with total cost: ${m.ObjVal}")
+# Print results
+if m.status == GRB.OPTIMAL:
+    print(f"Optimal solution found with total cost: ${m.objVal:.2f}")
     
-# yearly cost
-yearly_cost = {}
-for t in time:
-    yearly_cost[t] = c_f[32] * X_f[32, t].X + c_s[32] * X_s[32, t].X + tc[t] * sum(road_data[e]['distance'] * (Y_f[e, t].X + Y_s[e, t].X) for e in roads)
-    print(f"Year {t} cost: ${yearly_cost[t]}")
-
+    # Print summary of purchases
+    print("\nFuel Purchases:")
+    for t in time:
+        year_total = sum(X_f[w, t].X for w in warehouses)
+        print(f"  Year {t}: {year_total:.1f}L")
+        for w in warehouses:
+            if X_f[w, t].X > 0.1:  # Only print significant purchases
+                print(f"    Warehouse {w}: {X_f[w, t].X:.1f}L")
     
+    print("\nSuppressant Purchases:")
+    for t in time:
+        year_total = sum(X_s[w, t].X for w in warehouses)
+        print(f"  Year {t}: {year_total:.1f}L")
+        for w in warehouses:
+            if X_s[w, t].X > 0.1:  # Only print significant purchases
+                print(f"    Warehouse {w}: {X_s[w, t].X:.1f}L")
+    
+    # Print ending inventory
+    print("\nEnding Inventory (Year 2029):")
+    for b in burn_sites:
+        fuel_inv = I_f[b, "2029"].X
+        supp_inv = I_s[b, "2029"].X
+        if fuel_inv > 0.1 or supp_inv > 0.1:  # Only print non-zero inventory
+            print(f"  Burn site {b}: {fuel_inv:.1f}L fuel, {supp_inv:.1f}L suppressant")
+    
+    # Total inventory
+    total_fuel_inv = sum(I_f[b, "2029"].X for b in burn_sites)
+    total_supp_inv = sum(I_s[b, "2029"].X for b in burn_sites)
+    print(f"  Total: {total_fuel_inv:.1f}L fuel, {total_supp_inv:.1f}L suppressant")
+else:
+    print(f"Optimization failed with status {m.status}")
