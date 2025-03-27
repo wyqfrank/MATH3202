@@ -458,5 +458,7 @@ print(f"Optimal solution found with total cost: ${m.ObjVal}")
 # yearly cost
 yearly_cost = {}
 for t in time:
-    yearly_cost[t] = c_f[32] * X_f[32, t].X + c_s[32] * X_s[32, t].X + tc[t] * sum(road_data[e]['distance'] * (Y_f[e, t].X + Y_s[e, t].X) for e in roads)
+    purchase_cost = sum(c_f[w] * X_f[w, t].X + c_s[w] * X_s[w, t].X for w in warehouses)
+    transport_cost = tc[t] * sum(road_data[e]['distance'] * (Y_f[e, t].X + Y_s[e, t].X) for e in roads)
+    yearly_cost[t] = purchase_cost + transport_cost
     print(f"Year {t} cost: ${yearly_cost[t]}")
