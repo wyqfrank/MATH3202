@@ -356,3 +356,12 @@ for r in roads:
     
 m.optimize()
 print(m.ObjVal)
+
+print("\n=== FUEL PURCHASES AT EACH WAREHOUSE ===")
+print("Warehouse | Fuel Amount (L)")
+print("--------------------------")
+
+for w in warehouses:
+    fuel_amount = x[w].X
+    print(f"    {w}    | {fuel_amount:.2f}")
+

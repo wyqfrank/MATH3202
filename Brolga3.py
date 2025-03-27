@@ -415,3 +415,19 @@ for w in warehouses:
     print(f"Warehouse {w}:")
     print(f"Fuel: {x[w].X}")
     print(f"Fire suppressant: {z[w].X}")
+
+print("\n=== FUEL PURCHASES AT EACH WAREHOUSE ===")
+print("Warehouse | Fuel Amount (L)")
+print("--------------------------")
+
+for w in warehouses:
+    fuel_amount = x[w].X
+    print(f"    {w}    | {fuel_amount:.2f}")
+
+print("\n=== FIRE SUPPRESSANT PURCHASES AT EACH WAREHOUSE ===")
+print("Warehouse | Suppressant Amount (L)")
+print("-------------------------------------")
+
+for w in warehouses:
+    suppressant_amount = z[w].X
+    print(f"    {w}    | {suppressant_amount:.2f}")
