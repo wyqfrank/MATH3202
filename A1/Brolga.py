@@ -349,3 +349,13 @@ for site_id in burn_sites + warehouses:
 
 m.optimize()
 print(m.ObjVal)
+
+# Print fuel purchases at each warehouse
+print("\n=== FUEL PURCHASES AT EACH WAREHOUSE ===")
+print("Warehouse | Fuel Amount (L)")
+print("--------------------------")
+
+for w in warehouses:
+    fuel_amount = x[w].X
+    print(f"    {w}    | {fuel_amount:.2f}")
+
