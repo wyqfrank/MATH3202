@@ -186,7 +186,7 @@ m.setObjective(quicksum(Jobscore[j, r] * X[j,r] for j in J for r in R), GRB.MAXI
 # Constraints 
 # Max work hours 
 for r in R:
-    m.addConstr(quicksum(X[j,r] * Jobs[j]['duration'] for j in J) <= max_hours, 
+    m.addConstr(quicksum(X[j,r] * Jobs[j]['duration'] for j in J) <= Weekly_max_hours, 
                 name=f"hours_ranger_{r}")
     
 # Ranger requirement for each job 
