@@ -199,7 +199,7 @@ for r in R:
 for j in J:
     for (r1, r2) in avoid_pairs:
         m.addConstr(X[j, r1, t] + X[j, r2, t] <= 1,
-                    name=f"avoid_pair_{r1}_{r2}_job{j}_day{t}")
+                    name=f"avoid_pair_{r1}_{r2}_job{j}_day{t}") # might need to tweak
 
 # 5. Rangers 2, 3, 5, 11 cannot work 2 consecutive days
 for r in no_consecutive_rangers:
@@ -258,13 +258,13 @@ if m.status == GRB.OPTIMAL:
             if Y[r, t].x > 0.5:  # If ranger i works on day t
                 print(f"  {Days[t]}:", end=" ")
                 for j in J:
-                    if X[r, j, t].x > 0.5:  # If ranger i is assigned to job j on day t
+                    if X[j, r, t].x > 0.5:  # If ranger i is assigned to job j on day t
                         print(f"{Jobs[j]['title']} ({Jobs[j]['duration']} hrs)", end=", ")
                 print()
     
     # Calculate utilization statistics
     total_possible_hours = len(R) * 36  # 21 rangers × 36 hours max per week
-    total_assigned_hours = sum(X[r, j, t].x * Jobs[j]['duration'] 
+    total_assigned_hours = sum(X[j, r, t].x * Jobs[j]['duration'] 
                               for r in R for j in J for t in T)
     utilization = (total_assigned_hours / total_possible_hours) * 100
     
@@ -272,7 +272,7 @@ if m.status == GRB.OPTIMAL:
     
     # Hours by day
     for t in T:
-        day_hours = sum(X[r, j, t].x * Jobs[j]['duration'] for r in R for j in J)
+        day_hours = sum(X[j, r, t].x * Jobs[j]['duration'] for r in R for j in J)
         print(f"Hours on {Days[t]}: {day_hours}")
     
     # Rangers by day
