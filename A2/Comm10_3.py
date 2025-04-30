@@ -157,7 +157,7 @@ min_days_off = 2
 avoid_pairs = [(11,20), (1,3), (4,20), (1,10)]
 Weekly_max_hours = 36
 Daily_max_hours = 10
-non_consecutive_work_days = [0, 2, 3, 5, 11]
+no_consecutive_rangers = [0, 2, 3, 5, 11]
 
 m = Model()
 
@@ -172,7 +172,9 @@ X = {(j, r, t): m.addVar(vtype=GRB.BINARY, name=f"assign_job{j}_ranger{r}_day{t}
 # Y[r, t] = 1 if ranger r is assigned to work on day t, 0 otherwise
 Y = {(r, t): m.addVar(vtype=GRB.BINARY, name=f"assign_ranger{r}_day{t}") for r in R for t in T}
 # W[j, t] = 1 if job j is scheduled on day t, 0 otherwise
-W = {(j, t): m.addVar(vtype=GRB.BINARY, name=f"job_scheduled{r}_day{t}") for r in R for t in T}
+W = {(j, t): m.addVar(vtype=GRB.BINARY, name=f"job_scheduled{r}_day{t}") for j in J for t in T}
+
+m.update()
 
 # Objective function
 m.setObjective(quicksum(X[j, r, t] * job_score[j, r] for j in J for r in R for t in T), GRB.MAXIMIZE)
@@ -181,17 +183,102 @@ m.setObjective(quicksum(X[j, r, t] * job_score[j, r] for j in J for r in R for t
 
 # 1. Weekly hours limit (36 hours)
 for r in R:
-    m.addConstr(quicksum(X[r, j, t] * Jobs[j]['duration'] for j in J for t in T) <= Weekly_max_hours, name=f"weekly_hours_limit_ranger{r}")
+    m.addConstr(quicksum(X[j, r, t] * Jobs[j]['duration'] for j in J for t in T) <= Weekly_max_hours, name=f"weekly_hours_limit_ranger{r}")
 
 # 2. Daily hours limit (10 hours)
 for r in R:
     for t in T:
-        m.addConstr(quicksum(X[r, j, t] * Jobs[j]['duration'] for j in J) <= Daily_max_hours, name=f"daily_hours_limit_ranger{r}_day{t}")
+        m.addConstr(quicksum(X[j, r, t] * Jobs[j]['duration'] for j in J) <= Daily_max_hours, name=f"daily_hours_limit_ranger{r}_day{t}")
 
 # 3. Each ranger must have atleast 2 days off a week
 for r in R:
-    m.addConstr(quicksum(Y[r, t] for t in T) <= len(T) - min_days_off, name=f"days_off_ranger{r}")
+    m.addConstr(quicksum(Y[r, t] for t in T) <= len(T) - min_days_off,
+                name=f"days_off_ranger{r}")
 
-# 4. Avoid certian ranger pairs from working together
+# 4. Avoid certain ranger pairs from working together
+for j in J:
+    for (r1, r2) in avoid_pairs:
+        m.addConstr(X[j, r1, t] + X[j, r2, t] <= 1,
+                    name=f"avoid_pair_{r1}_{r2}_job{j}_day{t}")
 
+# 5. Rangers 2, 3, 5, 11 cannot work 2 consecutive days
+for r in no_consecutive_rangers:
+    for t in T:
+        next_t = (t + 1) % len(Days)
+        m.addConstr(Y[r, t] + Y[r, next_t] <= 1,
+                    name=f"no_consecutive_rangers_{r}_day{t}")
 
+# 6. Link X and Y variables (if assigned any job on day t, Y[r,t]=1)
+for r in R:
+    for t in T:
+        # If ranger r works on any job on day t, then Y[r,t] = 1
+        m.addConstr(
+            quicksum(X[j, r, t] for j in J) <= 100 * Y[r, t],
+            f"WorkDay_Trigger_r{r}_d{t}"
+        )
+        
+        # If Y[r,t] = 1, then ranger r works on at least 1 job on day t
+        m.addConstr(
+            quicksum(X[j, r, t] for j in J) >= Y[r, t],
+            f"WorkDay_Require_r{r}_d{t}"
+        )
+
+# 7. Each job must be scheduled on exactly 1 day
+for j in J:
+    m.addConstr(quicksum(W[j, t] for t in T) == 1, f"job_{j}_one_day")
+
+# 8. Each job must be assigned to the required number of rangers
+for j in J:
+    m.addConstr(quicksum(X[j, r, t] for r in R for t in T) == Jobs[j]['rangers'], f"job_{j}_ranger_count")
+
+# 9. A ranger can only be assigned to a job if that job is scheduled on that day
+for r in R:
+    for j in J:
+        for t in T:
+            m.addConstr(X[j, r, t] <= W[j, t], f"job_{j}_ranger_{r}_day_{t}")
+
+m.optimize()
+
+# Print results
+if m.status == GRB.OPTIMAL:
+    print(f"Optimal skill score: {m.objVal}")
+    
+    # Print day assignments for jobs
+    print("\nJob Day Assignments:")
+    for j in J:
+        for t in T:
+            if W[j, t].x > 0.5:  # If job j is scheduled on day t
+                print(f"Job {j} ({Jobs[j]['title']}) scheduled on {Days[t]}")
+    
+    # Print ranger assignments
+    print("\nRanger Assignments:")
+    for r in R:
+        print(f"\nRanger {r} schedule:")
+        for t in T:
+            if Y[r, t].x > 0.5:  # If ranger i works on day t
+                print(f"  {Days[t]}:", end=" ")
+                for j in J:
+                    if X[r, j, t].x > 0.5:  # If ranger i is assigned to job j on day t
+                        print(f"{Jobs[j]['title']} ({Jobs[j]['duration']} hrs)", end=", ")
+                print()
+    
+    # Calculate utilization statistics
+    total_possible_hours = len(R) * 36  # 21 rangers × 36 hours max per week
+    total_assigned_hours = sum(X[r, j, t].x * Jobs[j]['duration'] 
+                              for r in R for j in J for t in T)
+    utilization = (total_assigned_hours / total_possible_hours) * 100
+    
+    print(f"\nTotal ranger hours utilized: {total_assigned_hours} out of {total_possible_hours} ({utilization:.2f}%)")
+    
+    # Hours by day
+    for t in T:
+        day_hours = sum(X[r, j, t].x * Jobs[j]['duration'] for r in R for j in J)
+        print(f"Hours on {Days[t]}: {day_hours}")
+    
+    # Rangers by day
+    for t in T:
+        rangers_working = sum(Y[r, t].x for r in R)
+        print(f"Rangers working on {Days[t]}: {rangers_working} out of {len(R)}")
+        
+else:
+    print("No optimal solution found.")
