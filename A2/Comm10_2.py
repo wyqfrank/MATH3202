@@ -153,72 +153,80 @@ J = range(len(Jobs))
 R = range(len(Rangers))
 T = range(len(Days))
 
+# Parameters
 min_days_off = 2
-avoid_pairs = [(11,20), (1,3), (4,20), (1,10)]
+avoid_pairs = [(11, 20), (1, 3), (4, 20), (1, 10)]
 Weekly_max_hours = 36
 Daily_max_hours = 10
 non_consecutive_work_days = [0, 2, 3, 5, 11]
 
+# Model
 m = Model()
 
-jobscore = {}
-for j in J:
-    for r in R:
-        jobscore[j, r] = sum(Rangers[r][skill] for skill in Jobs[j]['skills'])
+# Job skill score calculation
+jobscore = {(j, r): sum(Rangers[r][skill] for skill in Jobs[j]['skills']) for j in J for r in R}
 
-# Variables 
-X = {(j,r): m.addVar(vtype=GRB.BINARY, name=f"assign_job{j}_ranger{r}") for j in J for r in R}
-Y = {(r,t): m.addVar(vtype=GRB.BINARY, name=f"assign_ranger{r}_day{t}") for r in R for t in T}
+# Variables
+X = {(j, r): m.addVar(vtype=GRB.BINARY) for j in J for r in R}  # Ranger r assigned to job j
+Z = {(j, t): m.addVar(vtype=GRB.BINARY) for j in J for t in T}  # Job j scheduled on day t
+Y = {(r, t): m.addVar(vtype=GRB.BINARY) for r in R for t in T}  # Ranger r works on day t
+W = {(j, r, t): m.addVar(vtype=GRB.BINARY) for j in J for r in R for t in T}  # W[j,r,t] = X[j,r] * Z[j,t]
 
 # Objective: Maximize total skill score
-m.setObjective(quicksum(jobscore[j,r] * X[j,r] for j in J for r in R), GRB.MAXIMIZE)
+m.setObjective(quicksum(jobscore[j, r] * X[j, r] for j in J for r in R), GRB.MAXIMIZE)
 
-# Constaints 
+# Constraints
 # 1. Assign required number of rangers to each job
 for j in J:
-    m.addConstr(quicksum(X[j,r] for r in R) == Jobs[j]['rangers'], f"JobRequirement_{j}")
+    m.addConstr(quicksum(X[j, r] for r in R) == Jobs[j]['rangers'])
 
-# 2. Weekly hours limit (36 hours)
+# 2. Each job is assigned to exactly one day
+for j in J:
+    m.addConstr(quicksum(Z[j, t] for t in T) == 1)
+
+# 3. Link X and Z via W[j,r,t] = X[j,r] * Z[j,t]
+for j in J:
+    for r in R:
+        for t in T:
+            m.addConstr(W[j, r, t] <= X[j, r])
+            m.addConstr(W[j, r, t] <= Z[j, t])
+            m.addConstr(W[j, r, t] >= X[j, r] + Z[j, t] - 1)
+
+# 4. Weekly hours limit (36 hours)
 for r in R:
-    m.addConstr(quicksum(X[j,r] * Jobs[j]['duration'] for j in J) <= Weekly_max_hours, f"WeeklyHours_{r}")
+    m.addConstr(quicksum(X[j, r] * Jobs[j]['duration'] for j in J) <= Weekly_max_hours)
 
-# 3. Daily hours limit (10 hours)
+# 5. Daily hours limit (10 hours)
 for r in R:
     for t in T:
-        # Total hours on day t
-        daily_hours = quicksum(X[j,r] * Jobs[j]['duration'] for j in J if Jobs[j]['day'] == t)
-        m.addConstr(daily_hours <= Daily_max_hours, f"DailyHours_r{r}_d{t}")
+        m.addConstr(quicksum(W[j, r, t] * Jobs[j]['duration'] for j in J) <= Daily_max_hours)
 
-# 4. At least 2 days off per ranger
+# 6. At least 2 days off per ranger
 for r in R:
-    m.addConstr(quicksum(Y[r,t] for t in T) <= len(T) - min_days_off, f"DaysOff_{r}")
+    m.addConstr(quicksum(Y[r, t] for t in T) <= len(T) - min_days_off)
 
-# 5. Link X and Y variables (if assigned any job on day t, Y[r,t]=1)
+# 7. Link Y[r,t] to W[j,r,t] (if r works any job on day t, Y[r,t]=1)
 for r in R:
     for t in T:
-        # Sum of assignments on day t
-        day_assignments = quicksum(X[j,r] for j in J if Jobs[j]['day'] == t)
-        # If any assignments, Y must be 1
-        m.addConstr(day_assignments <= 100 * Y[r,t], f"WorkDay_Trigger_r{r}_d{t}")
-        # If Y is 1, must have at least one assignment
-        m.addConstr(Y[r,t] <= day_assignments, f"WorkDay_Require_r{r}_d{t}")
+        m.addConstr(Y[r, t] <= quicksum(W[j, r, t] for j in J))
+        m.addConstr(quicksum(W[j, r, t] for j in J) <= 100 * Y[r, t])
 
-# 6. Avoid specific ranger pairs working together
+# 8. Avoid specific ranger pairs
 for j in J:
     for (r1, r2) in avoid_pairs:
-        m.addConstr(X[j,r1] + X[j,r2] <= 1, f"AvoidPair_j{j}_r{r1}_r{r2}")
+        m.addConstr(X[j, r1] + X[j, r2] <= 1)
 
-# 7. Non-consecutive work days for specific rangers
+# 9. Non-consecutive work days (including Sun->Mon)
 for r in non_consecutive_work_days:
-    for t in range(len(T)):
-        next_t = (t + 1) % len(T)
-        m.addConstr(Y[r,t] + Y[r,next_t] <= 1, f"NonConsecutiveWork_r{r}_d{t}")
-
+    for t in range(len(T) - 1):
+        m.addConstr(Y[r, t] + Y[r, t + 1] <= 1)
+    m.addConstr(Y[r, 6] + Y[r, 0] <= 1)  # Sun->Mon
 
 # Solve
 m.optimize()
 
 # Results
 if m.status == GRB.OPTIMAL:
-    print(f"\nOptimal total skill score: {m.objVal}\n")
-
+    print(f"Optimal total skill score: {m.objVal}")
+else:
+    print("No solution found.")
