@@ -221,4 +221,27 @@ m.optimize()
 # Results
 if m.status == GRB.OPTIMAL:
     print(f"\nOptimal total skill score: {m.objVal}\n")
-
+    # work allocation
+    for r in R:
+        print(f"Ranger {r} works on days: ", end="")
+        for t in T:
+            if Y[r,t].x > 0.5:  # If ranger r works on day t
+                print(Days[t], end=" ")
+        print()
+    # Calculate utilization statistics
+    total_possible_hours = len(R) * 36  # 21 rangers × 36 hours max per week
+    total_assigned_hours = sum(X[j, r].x * Jobs[j]['duration'] 
+                              for r in R for j in J)
+    utilization = (total_assigned_hours / total_possible_hours) * 100
+    
+    print(f"\nTotal ranger hours utilized: {total_assigned_hours} out of {total_possible_hours} ({utilization:.2f}%)")
+    
+    # Hours by day
+    for t in T:
+        day_hours = sum(X[j, r].x * Jobs[j]['duration'] for r in R for j in J if Jobs[j]['day'] == t)
+        print(f"Hours on {Days[t]}: {day_hours}")
+    
+    # Rangers by day
+    for t in T:
+        rangers_working = sum(Y[r, t].x for r in R if Y[r, t].x > 0.5)
+        print(f"Rangers working on {Days[t]}: {rangers_working} out of {len(R)}")

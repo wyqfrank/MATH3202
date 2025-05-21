@@ -213,7 +213,7 @@ for r in R:
     for t in T:
         # If ranger r works on any job on day t, then Y[r,t] = 1
         m.addConstr(
-            quicksum(X[j, r, t] for j in J) <= 100 * Y[r, t],
+            quicksum(X[j, r, t] for j in J) <= 10 * Y[r, t],
             f"WorkDay_Trigger_r{r}_d{t}"
         )
         
@@ -262,13 +262,13 @@ if m.status == GRB.OPTIMAL:
                         print(f"{Jobs[j]['title']} ({Jobs[j]['duration']} hrs)", end=", ")
                 print()
     
-    # Calculate utilization statistics
-    total_possible_hours = len(R) * 36  # 21 rangers × 36 hours max per week
+    # Calculate utilisation statistics
+    total_possible_hours = len(R) * 36  
     total_assigned_hours = sum(X[j, r, t].x * Jobs[j]['duration'] 
                               for r in R for j in J for t in T)
-    utilization = (total_assigned_hours / total_possible_hours) * 100
+    utilisation = (total_assigned_hours / total_possible_hours) * 100
     
-    print(f"\nTotal ranger hours utilized: {total_assigned_hours} out of {total_possible_hours} ({utilization:.2f}%)")
+    print(f"\nTotal ranger hours utilised: {total_assigned_hours} out of {total_possible_hours} ({utilisation:.2f}%)")
     
     # Hours by day
     for t in T:
