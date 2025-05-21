@@ -194,9 +194,18 @@ m.optimize()
 # Print the results
 
 print(f"Optimal total skill score: {m.objVal}")
+    # each jobs assigned rangers
+for j in J:
+    assigned_rangers = [r for r in R if X[j,r].x > 0.5]
+    print(f"Job {j}: {Jobs[j]['title']}, Assigned Rangers: {assigned_rangers}")
+    # job score of assigned ranger for the job
+    for r in assigned_rangers:
+        print(f"  Ranger {r}: Skill Score = {Jobscore[j, r]}")
 for r in R:
     assigned_jobs = [j for j in J if X[j,r].x > 0.5]
     total_hours = sum(Jobs[j]['duration'] for j in assigned_jobs)
     print(f"Ranger {r}: {len(assigned_jobs)} jobs, {total_hours} hours")
+
+
     
 
