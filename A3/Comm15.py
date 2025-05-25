@@ -10,52 +10,46 @@ def trap(x):
     return .03*x
 
 def damage(t):
-    d = 2.0
-    dt1 = min(abs(t - 12), abs((52 + t) - 12), abs(t - (52 + 12)))
-    if dt1 < 10:
-        d += 8.0 * (1.0 - (dt1 / 10.0)**2)**2
-    dt2 = min(abs(t - 48), abs((52 + t) - 48), abs(t - (52 + 48)))
-    if dt2 < 7:
-        d += 6.0 * (1.0 - (dt2 / 7.0)**2)**2
+    d = 2
+    dt = min(abs(t-12), abs((52+t)-12), abs(t-(52+12)))
+    if dt < 10:
+        d += 8*(1-(dt/10)**2)**2
+    dt = min(abs(t-48), abs((52+t)-48), abs(t-(52+48)))
+    if dt < 7:
+        d += 6*(1-(dt/7)**2)**2
     return d
 
-def hunter(x_val):
-    x = float(x_val) 
-    if x <= 0:
-        return 0.0
-    return 0.2 * x
+def hunter(x):
+    return .2*x
 
 # Data
 INITIAL_PIGS = 67
 TOTAL_TRAPS_BUDGET = 27
 MAX_TRAPS_PER_WEEK = 4
-NUM_WEEKS = 52  
+NUM_WEEKS = 52 
 MAX_HUNTING_WEEKS = 2
 
-
-c15 = {}
+memo_c15 = {}
 
 def solve_communication_15(week, current_pigs_int, traps_left, deployed_traps_last_week, hunting_weeks_used):
     state = (week, current_pigs_int, traps_left, deployed_traps_last_week, hunting_weeks_used)
-    if state in c15:
-        return c15[state]
+    if state in memo_c15:
+        return memo_c15[state]
 
     # Base Case: End of the year
     if week == NUM_WEEKS:
-        return float(current_pigs_int * 50) # Expected damage from pigs left
+        return float(current_pigs_int * 50)  # Expected damage from pigs left
 
     damage_from_pigs_this_week = float(current_pigs_int * damage(week))
     min_total_damage_for_state = float('inf')
 
-    # Standard week (deploy traps, k_traps can be 0)
-    # This loop covers deploying 0 to MAX_TRAPS_PER_WEEK traps.
-    # If k_traps_this_week is 0, this branch considers "doing nothing with traps and not hunting".
+    # Option 1: Standard week (deploy traps)
     for k_traps_this_week in range(min(MAX_TRAPS_PER_WEEK, traps_left) + 1):
         damage_from_trap_deployment_activity = 0.0
         if k_traps_this_week > 0 and not deployed_traps_last_week:
             damage_from_trap_deployment_activity = float(k_traps_this_week * 4 * damage(week))
 
-        pigs_after_reproduction_float = reprod(current_pigs_int)
+        pigs_after_reproduction_float = reprod(current_pigs_int)  
         pigs_eliminated_by_k_traps_float = k_traps_this_week * trap(current_pigs_int)
         next_week_pigs_float_traps = max(0.0, pigs_after_reproduction_float - pigs_eliminated_by_k_traps_float)
 
@@ -68,7 +62,7 @@ def solve_communication_15(week, current_pigs_int, traps_left, deployed_traps_la
         common_args_for_next_state_traps = {
             "traps_left": traps_left - k_traps_this_week,
             "deployed_traps_last_week": (k_traps_this_week > 0),
-            "hunting_weeks_used": hunting_weeks_used # Hunting weeks not used in this branch
+            "hunting_weeks_used": hunting_weeks_used
         }
 
         if floor_pigs_traps == ceil_pigs_traps:
@@ -91,19 +85,58 @@ def solve_communication_15(week, current_pigs_int, traps_left, deployed_traps_la
                 int(floor_pigs_traps),
                 **common_args_for_next_state_traps
             )
-            expected_damage_from_future_weeks_traps = (prob_round_up_traps * damage_if_ceil_traps) + \
-                                                      (prob_round_down_traps * damage_if_floor_traps)
+            expected_damage_from_future_weeks_traps = (prob_round_up_traps * damage_if_ceil_traps +
+                                                     prob_round_down_traps * damage_if_floor_traps)
         
         current_total_damage_traps_option = (damage_from_pigs_this_week +
-                                             damage_from_trap_deployment_activity +
-                                             expected_damage_from_future_weeks_traps)
+                                           damage_from_trap_deployment_activity +
+                                           expected_damage_from_future_weeks_traps)
         min_total_damage_for_state = min(min_total_damage_for_state, current_total_damage_traps_option)
 
-    c15[state] = min_total_damage_for_state
+    # Option 2: Hunting week
+    if hunting_weeks_used < MAX_HUNTING_WEEKS:
+        pigs_after_reproduction_float_hunt = reprod(current_pigs_int)
+        pigs_eliminated_by_hunting_float = hunter(current_pigs_int)
+        next_week_pigs_float_hunt = max(0.0, pigs_after_reproduction_float_hunt - pigs_eliminated_by_hunting_float)
+
+        floor_pigs_hunt = math.floor(next_week_pigs_float_hunt)
+        ceil_pigs_hunt = math.ceil(next_week_pigs_float_hunt)
+
+        common_args_for_next_state_hunt = {
+            "traps_left": traps_left,
+            "deployed_traps_last_week": False,
+            "hunting_weeks_used": hunting_weeks_used + 1
+        }
+
+        if floor_pigs_hunt == ceil_pigs_hunt:
+            expected_damage_from_future_weeks_hunt = solve_communication_15(
+                week + 1,
+                int(floor_pigs_hunt),
+                **common_args_for_next_state_hunt
+            )
+        else:
+            prob_round_up_hunt = next_week_pigs_float_hunt - floor_pigs_hunt
+            prob_round_down_hunt = 1.0 - prob_round_up_hunt
+            
+            damage_if_ceil_hunt = solve_communication_15(
+                week + 1,
+                int(ceil_pigs_hunt),
+                **common_args_for_next_state_hunt
+            )
+            damage_if_floor_hunt = solve_communication_15(
+                week + 1,
+                int(floor_pigs_hunt),
+                **common_args_for_next_state_hunt
+            )
+            expected_damage_from_future_weeks_hunt = (prob_round_up_hunt * damage_if_ceil_hunt +
+                                                    prob_round_down_hunt * damage_if_floor_hunt)
+        
+        current_total_damage_hunt_option = damage_from_pigs_this_week + expected_damage_from_future_weeks_hunt
+        min_total_damage_for_state = min(min_total_damage_for_state, current_total_damage_hunt_option)
+        
+    memo_c15[state] = min_total_damage_for_state
     return min_total_damage_for_state
 
-# Start at week 0, with INITIAL_PIGS, TOTAL_TRAPS_BUDGET, 
-# no traps deployed last week (False), and 0 hunting weeks used.
+# Calculate final result
 final_expected_total_damage_c15 = solve_communication_15(0, INITIAL_PIGS, TOTAL_TRAPS_BUDGET, False, 0)
-
 print(f"{final_expected_total_damage_c15}")
