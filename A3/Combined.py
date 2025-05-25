@@ -26,5 +26,5 @@ weeks = 52
 #---------------------------Communication 11---------------------------------#
 _Com11 = {}
 
-def solve_communication_11(week, current_pigs_raw, traps_left, deployed_traps_last_week):
+def solve_communication_11(week, current_pigs, traps_left, deployed_traps_last_week):
     pass 
