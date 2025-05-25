@@ -58,13 +58,13 @@ def solve_communication_14(week, current_pigs_int, traps_left, deployed_traps_la
         if k_traps_to_deploy_this_week > 0 and not deployed_traps_last_week:
             damage_from_trap_deployment_activity = float(k_traps_to_deploy_this_week * 4 * damage(week))
 
-        # --- Calculate population for the start of the NEXT week (as a float) ---
+        # Calculate population for the start of the NEXT week (as a float)
         pigs_after_reproduction_float = new_reprod(current_pigs_int)
         pigs_eliminated_by_k_traps_float = k_traps_to_deploy_this_week * new_trap(current_pigs_int)
         
         next_week_pigs_float = max(0.0, pigs_after_reproduction_float - pigs_eliminated_by_k_traps_float)
 
-        # --- Stochastic Rounding and Expected Future Damage Calculation ---
+        # Stochastic Rounding and Expected Future Damage Calculation 
         floor_pigs_val = math.floor(next_week_pigs_float)
         ceil_pigs_val = math.ceil(next_week_pigs_float)
         
@@ -113,7 +113,6 @@ def solve_communication_14(week, current_pigs_int, traps_left, deployed_traps_la
     memo_c14[state] = min_expected_total_damage_from_this_state
     return min_expected_total_damage_from_this_state
 
-# Initial Call for Communication 14
 # Start at week 0, with INITIAL_PIGS (integer), TOTAL_TRAPS_BUDGET, 
 # and False (no traps deployed before week 0).
 final_expected_total_damage_c14 = solve_communication_14(0, INITIAL_PIGS, TOTAL_TRAPS_BUDGET, False)

@@ -17,7 +17,7 @@ def damage(t):
 def trap(x):
     return round(.03*x)
 
-# initial problems parameters 
+# initial data
 initial_pop = 67
 total_traps = 27
 max_weekly_traps = 4 

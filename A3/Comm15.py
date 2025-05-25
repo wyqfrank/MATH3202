@@ -31,16 +31,16 @@ MAX_HUNTING_WEEKS = 2
 
 memo_c15 = {}
 
-def solve_communication_15(week, current_pigs_int, traps_left, deployed_traps_last_week, hunting_weeks_used):
-    state = (week, current_pigs_int, traps_left, deployed_traps_last_week, hunting_weeks_used)
+def solve_communication_15(week, current_pigs, traps_left, deployed_traps_last_week, hunting_weeks_used):
+    state = (week, current_pigs, traps_left, deployed_traps_last_week, hunting_weeks_used)
     if state in memo_c15:
         return memo_c15[state]
 
     # Base Case: End of the year
     if week == NUM_WEEKS:
-        return float(current_pigs_int * 50)  # Expected damage from pigs left
+        return float(current_pigs * 50)  # Expected damage from pigs left
 
-    damage_from_pigs_this_week = float(current_pigs_int * damage(week))
+    damage_from_pigs_this_week = float(current_pigs * damage(week))
     min_total_damage_for_state = float('inf')
 
     # Option 1: Standard week (deploy traps)
@@ -49,8 +49,8 @@ def solve_communication_15(week, current_pigs_int, traps_left, deployed_traps_la
         if k_traps_this_week > 0 and not deployed_traps_last_week:
             damage_from_trap_deployment_activity = float(k_traps_this_week * 4 * damage(week))
 
-        pigs_after_reproduction_float = reprod(current_pigs_int)  
-        pigs_eliminated_by_k_traps_float = k_traps_this_week * trap(current_pigs_int)
+        pigs_after_reproduction_float = reprod(current_pigs)  
+        pigs_eliminated_by_k_traps_float = k_traps_this_week * trap(current_pigs)
         next_week_pigs_float_traps = max(0.0, pigs_after_reproduction_float - pigs_eliminated_by_k_traps_float)
 
         # Stochastic Rounding
@@ -95,8 +95,8 @@ def solve_communication_15(week, current_pigs_int, traps_left, deployed_traps_la
 
     # Option 2: Hunting week
     if hunting_weeks_used < MAX_HUNTING_WEEKS:
-        pigs_after_reproduction_float_hunt = reprod(current_pigs_int)
-        pigs_eliminated_by_hunting_float = hunter(current_pigs_int)
+        pigs_after_reproduction_float_hunt = reprod(current_pigs)
+        pigs_eliminated_by_hunting_float = hunter(current_pigs)
         next_week_pigs_float_hunt = max(0.0, pigs_after_reproduction_float_hunt - pigs_eliminated_by_hunting_float)
 
         floor_pigs_hunt = math.floor(next_week_pigs_float_hunt)
