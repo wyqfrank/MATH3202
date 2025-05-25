@@ -1,0 +1,165 @@
+def reprod(x):
+    if x <= 0:
+        return 0
+    else:
+        return round(x + x*(420-x)/5000)
+    
+def damage(t):
+    d = 2
+    dt = min(abs(t-12), abs((52+t)-12), abs(t-(52+12)))
+    if dt < 10:
+        d += 8*(1-(dt/10)**2)**2
+    dt = min(abs(t-48), abs((52+t)-48), abs(t-(52+48)))
+    if dt < 7:
+        d += 6*(1-(dt/7)**2)**2
+    return d
+
+def trap(x):
+    return round(.03*x)
+
+# initial problems parameters 
+initial_pop = 67
+total_traps = 27
+max_weekly_traps = 4 
+weeks = 52
+
+#---------------------------Communication 11---------------------------------#
+_Com11 = {}
+def solve_communication_11(week, current_pigs, traps_left, deployed_traps_last_week):
+    current_pigs = round(current_pigs)
+    if current_pigs < 0:
+        current_pigs = 0
+        
+    state = (week, current_pigs, traps_left)
+    if state in _Com11:
+        return _Com11[state]
+
+    # base case: end of planning horizon
+    if week >= weeks:
+        return 0
+    
+    # calculate immediate damage from current pig population
+    damage_from_pigs_this_week = current_pigs * damage(week)
+    
+    # if no pigs, no future decisions needed
+    if current_pigs == 0:
+        future_damage = solve_communication_11(week + 1, 0, traps_left, False)
+        result = damage_from_pigs_this_week + future_damage
+        _Com11[state] = result
+        return result
+    
+    min_total_damage = float('inf')
+    
+    # try all possible trap deployments
+    for k_traps_this_week in range(min(max_weekly_traps, traps_left) + 1):
+        # calculate population dynamics
+        pigs_after_reproduction = reprod(current_pigs)
+        pigs_eliminated = k_traps_this_week * trap(current_pigs)
+        next_week_pigs = max(0, pigs_after_reproduction - pigs_eliminated)
+        
+        # recursive call for future weeks
+        future_damage = solve_communication_11(week + 1, next_week_pigs, traps_left - k_traps_this_week, k_traps_this_week > 0)
+        total_damage = damage_from_pigs_this_week + future_damage
+        
+        min_total_damage = min(min_total_damage, total_damage)
+    
+    _Com11[state] = min_total_damage
+    return min_total_damage
+
+#---------------------------Communication 12---------------------------------#
+_Com12 = {}
+def solve_communication_12(week, current_pigs, traps_left, deployed_traps_last_week):
+    current_pigs = round(current_pigs)
+    if current_pigs < 0:
+        current_pigs = 0
+        
+    state = (week, current_pigs, traps_left)
+    if state in _Com12:
+        return _Com12[state]
+
+    # base case: end of planning horizon
+    if week >= weeks:
+        terminal_cost = current_pigs * 50
+        return terminal_cost
+    
+    # calculate immediate damage from current pig population
+    damage_from_pigs_this_week = current_pigs * damage(week)
+    
+    # if no pigs, no future decisions needed
+    if current_pigs == 0:
+        future_damage = solve_communication_12(week + 1, 0, traps_left, False)
+        result = damage_from_pigs_this_week + future_damage
+        _Com12[state] = result
+        return result
+    
+    min_total_damage = float('inf')
+    
+    # try all possible trap deployments
+    for k_traps_this_week in range(min(max_weekly_traps, traps_left) + 1):
+        # calculate population dynamics
+        pigs_after_reproduction = reprod(current_pigs)
+        pigs_eliminated = k_traps_this_week * trap(current_pigs)
+        next_week_pigs = max(0, pigs_after_reproduction - pigs_eliminated)
+        
+        # recursive call for future weeks
+        future_damage = solve_communication_12(week + 1, next_week_pigs, traps_left - k_traps_this_week, k_traps_this_week > 0)
+        total_damage = damage_from_pigs_this_week + future_damage
+        
+        min_total_damage = min(min_total_damage, total_damage)
+    
+    _Com12[state] = min_total_damage
+    return min_total_damage
+
+#---------------------------Communication 13---------------------------------#
+_Com13 = {}
+def solve_communication_13(week, current_pigs, traps_left, deployed_traps_last_week):
+    current_pigs = round(current_pigs)
+    if current_pigs < 0:
+        current_pigs = 0
+
+    state = (week, current_pigs, traps_left, deployed_traps_last_week)
+    if state in _Com13:
+        return _Com13[state]
+
+    # base case: end of planning horizon
+    if week >= weeks:
+        terminal_cost = current_pigs * 50
+        return terminal_cost
+
+    # calculate immediate damage from current pig population
+    damage_from_pigs_this_week = current_pigs * damage(week)
+    min_total_damage = float('inf')
+
+    # try all possible trap deployments
+    for k_traps_this_week in range(min(max_weekly_traps, traps_left) + 1):
+        
+        # calculate trap deployment penalty (COM13 specific)
+        damage_from_trap_deployment = 0
+        if k_traps_this_week > 0 and not deployed_traps_last_week:
+            damage_from_trap_deployment = k_traps_this_week * 4 * damage(week)
+
+        # calculate population dynamics
+        pigs_after_reproduction = reprod(current_pigs)
+        pigs_eliminated = k_traps_this_week * trap(current_pigs)
+        next_week_pigs = max(0, pigs_after_reproduction - pigs_eliminated)
+
+        # determine state for next week
+        traps_deployed_this_week = (k_traps_this_week > 0)
+        remaining_traps = traps_left - k_traps_this_week
+        
+        # recursive call for future weeks
+        future_damage = solve_communication_13(
+            week + 1,
+            next_week_pigs,
+            remaining_traps,
+            traps_deployed_this_week
+        )
+
+        total_damage = (damage_from_pigs_this_week + 
+                       damage_from_trap_deployment + 
+                       future_damage)
+
+        min_total_damage = min(min_total_damage, total_damage)
+
+    _Com13[state] = min_total_damage
+    return min_total_damage
