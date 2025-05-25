@@ -1,6 +1,5 @@
 import math
 
-# --- Updated Helper Functions for Communication 14 ---
 def new_reprod(x_val): # x_val is an integer from the DP state
     x = float(x_val) # Use float for calculations
     if x <= 0:
@@ -14,7 +13,7 @@ def new_trap(x_val): # x_val is an integer from the DP state
         return 0.0
     return 0.03 * x
 
-# --- Damage Function (remains the same) ---
+# Damage Function
 def damage(t):
     d = 2.0
     dt1 = min(abs(t - 12), abs((52 + t) - 12), abs(t - (52 + 12)))
@@ -25,13 +24,13 @@ def damage(t):
         d += 6.0 * (1.0 - (dt2 / 7.0)**2)**2
     return d
 
-# --- Global Parameters ---
+# Global Parameters 
 INITIAL_PIGS = 67
 TOTAL_TRAPS_BUDGET = 27
 MAX_TRAPS_PER_WEEK = 4
 NUM_WEEKS = 52  # Simulating weeks 0 to 51
 
-# --- Memoization Dictionary for Communication 14 ---
+# --- Memoisation Dictionary for Communication 14 ---
 memo_c14 = {}
 
 def solve_communication_14(week, current_pigs_int, traps_left, deployed_traps_last_week):
@@ -114,7 +113,7 @@ def solve_communication_14(week, current_pigs_int, traps_left, deployed_traps_la
     memo_c14[state] = min_expected_total_damage_from_this_state
     return min_expected_total_damage_from_this_state
 
-# --- Initial Call for Communication 14 ---
+# Initial Call for Communication 14
 # Start at week 0, with INITIAL_PIGS (integer), TOTAL_TRAPS_BUDGET, 
 # and False (no traps deployed before week 0).
 final_expected_total_damage_c14 = solve_communication_14(0, INITIAL_PIGS, TOTAL_TRAPS_BUDGET, False)
