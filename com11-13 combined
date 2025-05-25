@@ -66,6 +66,12 @@ def solve_communication_11(week, current_pigs, traps_left, deployed_traps_last_w
     _Com11[state] = min_total_damage
     return min_total_damage
 
+# Calculate final results
+final_expected_total_damage_c11 = solve_communication_11(0, initial_pop, total_traps, False)
+print(f"{final_expected_total_damage_c11}")
+
+
+
 #---------------------------Communication 12---------------------------------#
 _Com12 = {}
 def solve_communication_12(week, current_pigs, traps_left, deployed_traps_last_week):
@@ -109,6 +115,11 @@ def solve_communication_12(week, current_pigs, traps_left, deployed_traps_last_w
     
     _Com12[state] = min_total_damage
     return min_total_damage
+
+# Calculate final results
+
+final_expected_total_damage_c12 = solve_communication_12(0, initial_pop, total_traps, False)
+print(f"{final_expected_total_damage_c12}")
 
 #---------------------------Communication 13---------------------------------#
 _Com13 = {}
@@ -161,5 +172,9 @@ def solve_communication_13(week, current_pigs, traps_left, deployed_traps_last_w
 
         min_total_damage = min(min_total_damage, total_damage)
 
+# Calculate final results
+
+final_expected_total_damage_c13 = solve_communication_13(0, initial_pop, total_traps, False)
+print(f"{final_expected_total_damage_c13}")
     _Com13[state] = min_total_damage
     return min_total_damage
