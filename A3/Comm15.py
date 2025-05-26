@@ -43,7 +43,7 @@ def solve_communication_15(week, current_pigs, traps_left, deployed_traps_last_w
     damage_from_pigs_this_week = float(current_pigs * damage(week))
     min_total_damage_for_state = float('inf')
 
-    # Option 1: Standard week (deploy traps)
+    # Standard week (deploy traps)
     for k_traps_this_week in range(min(MAX_TRAPS_PER_WEEK, traps_left) + 1):
         damage_from_trap_deployment_activity = 0.0
         if k_traps_this_week > 0 and not deployed_traps_last_week:
@@ -93,7 +93,7 @@ def solve_communication_15(week, current_pigs, traps_left, deployed_traps_last_w
                                            expected_damage_from_future_weeks_traps)
         min_total_damage_for_state = min(min_total_damage_for_state, current_total_damage_traps_option)
 
-    # Option 2: Hunting week
+    # Hunting week
     if hunting_weeks_used < MAX_HUNTING_WEEKS:
         pigs_after_reproduction_float_hunt = reprod(current_pigs)
         pigs_eliminated_by_hunting_float = hunter(current_pigs)

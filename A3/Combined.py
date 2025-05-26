@@ -17,8 +17,6 @@ def damage(t):
 def trap(x):
     return round(.03*x)
 
-def hunter(x):
-    return .2*x
 
 # initial problems parameters 
 initial_pop = 67
